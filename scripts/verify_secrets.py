@@ -8,9 +8,7 @@ FORBIDDEN_SUFFIXES = (".db", ".sqlite", ".sqlite3")
 
 
 def tracked_files() -> list[str]:
-    result = subprocess.run(
-        ["git", "ls-files"], capture_output=True, text=True, check=False
-    )
+    result = subprocess.run(["git", "ls-files"], capture_output=True, text=True, check=False)
     if result.returncode != 0:
         print("[INFO] Git repository not initialized; tracked-file scan skipped")
         return []
@@ -19,7 +17,8 @@ def tracked_files() -> list[str]:
 
 def main() -> int:
     unsafe = [
-        path for path in tracked_files()
+        path
+        for path in tracked_files()
         if path in FORBIDDEN_EXACT or path.endswith(FORBIDDEN_SUFFIXES)
     ]
     if unsafe:
