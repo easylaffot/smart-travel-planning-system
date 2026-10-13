@@ -1,13 +1,5 @@
-"""External data providers used by travel-planning tools."""
+"""Travel-data provider implementations."""
 
-from .http_client import SafeHttpClient
-from .location_provider import OpenMeteoLocationProvider
-from .routing_provider import OsrmRoutingProvider
-from .weather_provider import OpenMeteoWeatherProvider
+from .mock_travel_provider import MockTravelProvider
 
-__all__ = [
-    "SafeHttpClient",
-    "OpenMeteoLocationProvider",
-    "OpenMeteoWeatherProvider",
-    "OsrmRoutingProvider",
-]
+__all__ = ["MockTravelProvider"]
