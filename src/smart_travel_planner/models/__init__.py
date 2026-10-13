@@ -10,6 +10,7 @@ from .provider_results import (
     DataMode,
     LocationResult,
     RouteResult,
+    SearchResultItem,
     SourceMetadata,
     WeatherResult,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "HotelOption",
     "LocationResult",
     "RouteResult",
+    "SearchResultItem",
     "SourceMetadata",
     "TransportOption",
     "TravelClass",

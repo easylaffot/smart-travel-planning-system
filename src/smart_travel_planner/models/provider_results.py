@@ -28,6 +28,29 @@ class SourceMetadata(BaseModel):
     message: str | None = None
 
 
+class SearchResultItem(BaseModel):
+    """One destination-search result returned by a live or mock provider."""
+
+    title: str
+    url: str = ""
+    snippet: str = ""
+    provider: str = "destination_search"
+    data_mode: DataMode = DataMode.MOCK
+    retrieved_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class DestinationSearchResult(BaseModel):
+    """Structured output returned by the destination-search provider."""
+
+    query: str
+    destination: str
+    results: list[SearchResultItem] = Field(default_factory=list)
+    warning: str | None = None
+    provider: str = "destination_search"
+    data_mode: DataMode = DataMode.MOCK
+    source: SourceMetadata | None = None
+
+
 class LocationResult(BaseModel):
     """Resolved geographic location."""
 

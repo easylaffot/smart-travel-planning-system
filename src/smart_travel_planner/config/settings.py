@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     routing_api_key: SecretStr | None = None
     hotel_api_key: SecretStr | None = None
     transport_api_key: SecretStr | None = None
+    search_api_url: str = "https://example.com/search"
 
     use_mock_hotels: bool = True
     use_mock_transport: bool = True
