@@ -23,3 +23,15 @@ class CrewConfigurationError(ConfigurationError):
 
 class AgentExecutionError(SmartTravelPlannerError):
     """Raised when controlled agent execution cannot be completed."""
+
+
+class WorkflowExecutionError(SmartTravelPlannerError):
+    """Raised when the integrated planning workflow cannot complete."""
+
+
+class ResultParsingError(WorkflowExecutionError):
+    """Raised when a CrewAI result cannot be validated safely."""
+
+
+class PlanValidationError(WorkflowExecutionError):
+    """Raised when the final travel plan violates required constraints."""

@@ -27,12 +27,20 @@ from .travel_options import (
     HotelOption,
     TransportOption,
 )
+from .workflow import (
+    CrewExecutionResult,
+    PlanningResult,
+    RevisionOutcome,
+    RevisionRecord,
+    WorkflowStatus,
+)
 
 __all__ = [
     "Activity",
     "BudgetAnalysisOutput",
     "BudgetBreakdown",
     "CoordinationPlan",
+    "CrewExecutionResult",
     "CustomerTravelRequest",
     "DailyWeather",
     "DataMode",
@@ -42,10 +50,14 @@ __all__ = [
     "HotelTransportOutput",
     "ItineraryPlanOutput",
     "LocationResult",
+    "PlanningResult",
+    "RevisionOutcome",
+    "RevisionRecord",
     "RouteResult",
     "SearchResultItem",
     "SourceMetadata",
     "TransportOption",
     "TravelClass",
     "WeatherResult",
+    "WorkflowStatus",
 ]
