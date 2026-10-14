@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from crewai.tools import BaseTool
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, PrivateAttr, field_validator
 
 from smart_travel_planner.providers.search_provider import DestinationSearchProvider
 from smart_travel_planner.utils.exceptions import ProviderError
@@ -39,10 +40,15 @@ class DestinationSearchTool(BaseTool):
         "based on the provided interests and destination context."
     )
     args_schema: type[BaseModel] = SearchToolInput
+    _provider: DestinationSearchProvider = PrivateAttr()
 
-    def __init__(self, provider: DestinationSearchProvider | None = None) -> None:
-        super().__init__()
-        self.provider = provider or DestinationSearchProvider()
+    def __init__(
+        self,
+        provider: DestinationSearchProvider | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self._provider = provider or DestinationSearchProvider()
 
     def _run(
         self,
@@ -62,7 +68,7 @@ class DestinationSearchTool(BaseTool):
         query = " ".join([destination.strip(), *interest_items]).strip()
 
         try:
-            result = self.provider.search(
+            result = self._provider.search(
                 query=query,
                 destination=destination,
                 result_limit=result_limit,

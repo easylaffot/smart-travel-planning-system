@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any
 
 from crewai.tools import BaseTool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from smart_travel_planner.models.provider_results import DataMode
 from smart_travel_planner.providers.location_provider import OpenMeteoLocationProvider
@@ -33,24 +33,18 @@ class WeatherTool(BaseTool):
         "than inventing future weather."
     )
     args_schema: type[BaseModel] = WeatherToolInput
-    location_provider: Any = Field(
-        default_factory=OpenMeteoLocationProvider,
-        exclude=True,
-    )
-    weather_provider: Any = Field(
-        default_factory=OpenMeteoWeatherProvider,
-        exclude=True,
-    )
+    _location_provider: OpenMeteoLocationProvider = PrivateAttr()
+    _weather_provider: OpenMeteoWeatherProvider = PrivateAttr()
 
     def __init__(
         self,
-        location_provider: Any | None = None,
-        weather_provider: Any | None = None,
+        location_provider: OpenMeteoLocationProvider | None = None,
+        weather_provider: OpenMeteoWeatherProvider | None = None,
+        **kwargs: Any,
     ) -> None:
-        super().__init__(
-            location_provider=location_provider or OpenMeteoLocationProvider(),
-            weather_provider=weather_provider or OpenMeteoWeatherProvider(),
-        )
+        super().__init__(**kwargs)
+        self._location_provider = location_provider or OpenMeteoLocationProvider()
+        self._weather_provider = weather_provider or OpenMeteoWeatherProvider()
 
     def _run(self, location: str, start_date: str, end_date: str) -> str:
         """Return a structured weather payload as JSON."""
@@ -61,8 +55,8 @@ class WeatherTool(BaseTool):
             if end < start:
                 raise ProviderError("end_date cannot be earlier than start_date")
 
-            resolved_location = self.location_provider.search(location)
-            result = self.weather_provider.forecast(
+            resolved_location = self._location_provider.search(location)
+            result = self._weather_provider.forecast(
                 resolved_location,
                 start,
                 end,

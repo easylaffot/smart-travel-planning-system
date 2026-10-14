@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from crewai.tools import BaseTool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from smart_travel_planner.providers.location_provider import OpenMeteoLocationProvider
 from smart_travel_planner.utils.exceptions import ProviderError
@@ -27,16 +27,21 @@ class LocationTool(BaseTool):
         "and metadata using the configured provider."
     )
     args_schema: type[BaseModel] = LocationToolInput
-    provider: Any = Field(default_factory=OpenMeteoLocationProvider, exclude=True)
+    _provider: OpenMeteoLocationProvider = PrivateAttr()
 
-    def __init__(self, provider: Any | None = None) -> None:
-        super().__init__(provider=provider or OpenMeteoLocationProvider())
+    def __init__(
+        self,
+        provider: OpenMeteoLocationProvider | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self._provider = provider or OpenMeteoLocationProvider()
 
     def _run(self, location: str) -> str:
         """Return a safe JSON payload for the resolved location."""
 
         try:
-            result = self.provider.search(location)
+            result = self._provider.search(location)
             payload = {
                 "status": "success",
                 "provider": "open_meteo_geocoding",

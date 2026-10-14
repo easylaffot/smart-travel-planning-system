@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from crewai.tools import BaseTool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from smart_travel_planner.models.provider_results import DataMode
 from smart_travel_planner.providers.location_provider import OpenMeteoLocationProvider
@@ -31,24 +31,18 @@ class RoutingTool(BaseTool):
         "driving, walking, and cycling."
     )
     args_schema: type[BaseModel] = RoutingToolInput
-    location_provider: Any = Field(
-        default_factory=OpenMeteoLocationProvider,
-        exclude=True,
-    )
-    routing_provider: Any = Field(
-        default_factory=OsrmRoutingProvider,
-        exclude=True,
-    )
+    _location_provider: OpenMeteoLocationProvider = PrivateAttr()
+    _routing_provider: OsrmRoutingProvider = PrivateAttr()
 
     def __init__(
         self,
-        location_provider: Any | None = None,
-        routing_provider: Any | None = None,
+        location_provider: OpenMeteoLocationProvider | None = None,
+        routing_provider: OsrmRoutingProvider | None = None,
+        **kwargs: Any,
     ) -> None:
-        super().__init__(
-            location_provider=location_provider or OpenMeteoLocationProvider(),
-            routing_provider=routing_provider or OsrmRoutingProvider(),
-        )
+        super().__init__(**kwargs)
+        self._location_provider = location_provider or OpenMeteoLocationProvider()
+        self._routing_provider = routing_provider or OsrmRoutingProvider()
 
     def _run(self, origin: str, destination: str, profile: str = "driving") -> str:
         """Return route data as a JSON payload."""
@@ -62,9 +56,9 @@ class RoutingTool(BaseTool):
                     "Unsupported route profile. Supported profiles: driving, walking, cycling"
                 )
 
-            origin_result = self.location_provider.search(origin)
-            destination_result = self.location_provider.search(destination)
-            route = self.routing_provider.route(
+            origin_result = self._location_provider.search(origin)
+            destination_result = self._location_provider.search(destination)
+            route = self._routing_provider.route(
                 origin_result,
                 destination_result,
                 profile=normalized_profile,

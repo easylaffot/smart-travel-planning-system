@@ -11,3 +11,15 @@ class ConfigurationError(SmartTravelPlannerError):
 
 class ProviderError(SmartTravelPlannerError):
     """Raised when an external data provider fails safely."""
+
+
+class LLMConfigurationError(ConfigurationError):
+    """Raised when the configured LLM cannot be constructed safely."""
+
+
+class CrewConfigurationError(ConfigurationError):
+    """Raised when agents, tasks, or the Crew are configured incorrectly."""
+
+
+class AgentExecutionError(SmartTravelPlannerError):
+    """Raised when controlled agent execution cannot be completed."""

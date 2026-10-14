@@ -13,9 +13,13 @@ from smart_travel_planner.models.provider_results import (
     WeatherResult,
 )
 from smart_travel_planner.providers.search_provider import DestinationSearchProvider
+from smart_travel_planner.tools.budget_tool import BudgetCalculatorTool
+from smart_travel_planner.tools.hotel_tool import HotelSearchTool
 from smart_travel_planner.tools.location_tool import LocationTool
 from smart_travel_planner.tools.routing_tool import RoutingTool
 from smart_travel_planner.tools.schedule_tool import ItineraryScheduleValidatorTool
+from smart_travel_planner.tools.search_tool import DestinationSearchTool
+from smart_travel_planner.tools.transport_tool import TransportSearchTool
 from smart_travel_planner.tools.weather_tool import WeatherTool
 
 
@@ -58,6 +62,47 @@ class FakeRoutingProvider:
 
     def route(self, origin, destination, profile="driving"):
         return self.result
+
+
+class FakeDestinationSearchProvider:
+    def search(self, query, destination, result_limit=5):
+        raise AssertionError("The provider should not be called during construction")
+
+
+def test_all_tools_instantiate_with_private_provider_dependencies() -> None:
+    default_search_tool = DestinationSearchTool()
+    fake_search_provider = FakeDestinationSearchProvider()
+    injected_search_tool = DestinationSearchTool(provider=fake_search_provider)
+    tools = [
+        default_search_tool,
+        injected_search_tool,
+        LocationTool(),
+        WeatherTool(),
+        RoutingTool(),
+        HotelSearchTool(),
+        TransportSearchTool(),
+        BudgetCalculatorTool(),
+        ItineraryScheduleValidatorTool(),
+    ]
+
+    assert isinstance(default_search_tool._provider, DestinationSearchProvider)
+    assert injected_search_tool._provider is fake_search_provider
+    for tool in tools:
+        serialized = tool.model_dump()
+        tool_arguments = tool.args_schema.model_fields
+        assert {"name", "description", "args_schema"}.issubset(type(tool).model_fields)
+        assert not {
+            "provider",
+            "location_provider",
+            "weather_provider",
+            "routing_provider",
+        }.intersection(serialized)
+        assert not {
+            "provider",
+            "location_provider",
+            "weather_provider",
+            "routing_provider",
+        }.intersection(tool_arguments)
 
 
 def test_mock_destination_search_fallback_when_key_is_empty(monkeypatch) -> None:
