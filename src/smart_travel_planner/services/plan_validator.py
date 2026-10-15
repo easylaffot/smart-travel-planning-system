@@ -1,5 +1,6 @@
 """Final consistency validation for generated travel plans."""
 
+import logging
 from decimal import Decimal
 
 from smart_travel_planner.models import (
@@ -7,6 +8,8 @@ from smart_travel_planner.models import (
     FinalTravelPlanOutput,
 )
 from smart_travel_planner.utils.exceptions import PlanValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class FinalPlanValidator:
@@ -18,6 +21,20 @@ class FinalPlanValidator:
         plan: FinalTravelPlanOutput,
     ) -> list[str]:
         """Validate the final plan and return non-blocking warnings."""
+
+        logger.info(
+            "Final plan validation anchors: requested_destination=%r, "
+            "research_destination=%r, itinerary_destination=%r, "
+            "requested_start_date=%s, requested_end_date=%s, "
+            "generated_start_date=%s, generated_end_date=%s",
+            request.destination,
+            plan.destination_research.destination,
+            plan.itinerary.destination,
+            request.start_date.isoformat(),
+            request.end_date.isoformat(),
+            plan.itinerary.start_date.isoformat(),
+            plan.itinerary.end_date.isoformat(),
+        )
 
         errors: list[str] = []
         warnings: list[str] = []

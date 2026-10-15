@@ -35,6 +35,7 @@ def render_saved_plan_lookup() -> None:
         "Or enter an application ID",
         placeholder="TRIP-XXXXXXXXXXXX",
         key="manual_application_id",
+        autocomplete="off",
     )
 
     lookup_id = manual_id.strip() or selected_id

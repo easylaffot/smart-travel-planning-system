@@ -1,0 +1,56 @@
+services:
+  - type: web
+    name: smart-travel-planning-system
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /_stcore/health
+    autoDeploy: false
+
+    envVars:
+      - key: APP_NAME
+        value: Smart Travel Planning System
+
+      - key: APP_ENV
+        value: production
+
+      - key: LOG_LEVEL
+        value: INFO
+
+      - key: PYTHONPATH
+        value: /app/src:/app
+
+      - key: USE_MOCK_HOTELS
+        value: "true"
+
+      - key: USE_MOCK_TRANSPORT
+        value: "true"
+
+      - key: MAX_TRIP_DAYS
+        value: "30"
+
+      - key: MAX_REVISION_ROUNDS
+        value: "2"
+
+      - key: REQUEST_TIMEOUT_SECONDS
+        value: "20"
+
+      - key: CREW_VERBOSE
+        value: "false"
+
+      - key: CREW_CACHE_ENABLED
+        value: "true"
+
+      - key: OLLAMA_BASE_URL
+        value: https://ollama.com
+
+      - key: OLLAMA_API_KEY
+        sync: false
+
+      - key: OLLAMA_MODEL
+        sync: false
+
+      - key: SEARCH_API_KEY
+        sync: false
+
+      - key: SEARCH_API_URL
+        sync: false

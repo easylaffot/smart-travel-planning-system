@@ -53,15 +53,15 @@ def test_model_name_gets_ollama_prefix() -> None:
         settings=make_settings(model="gemma-test"),
     )
 
-    assert factory.normalized_model_name() == "ollama/gemma-test"
+    assert factory.normalized_model_name() == "openai/gemma-test"
 
 
 def test_existing_provider_prefix_is_preserved() -> None:
     factory = OllamaLLMFactory(
-        settings=make_settings(model="ollama/gemma-test"),
+        settings=make_settings(model="openai/gemma-test"),
     )
 
-    assert factory.normalized_model_name() == "ollama/gemma-test"
+    assert factory.normalized_model_name() == "openai/gemma-test"
 
 
 def test_configuration_status_does_not_reveal_key() -> None:
@@ -84,4 +84,4 @@ def test_create_constructs_llm_without_network_call() -> None:
     llm = factory.create()
 
     assert llm is not None
-    assert factory.normalized_model_name() == "ollama/gemma-test"
+    assert factory.normalized_model_name() == "openai/gemma-test"

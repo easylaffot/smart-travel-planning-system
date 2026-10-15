@@ -1,5 +1,7 @@
 """Offline tests for Phase 4A planning execution."""
 
+from datetime import date
+
 from smart_travel_planner.models import WorkflowStatus
 from smart_travel_planner.services import (
     FakeCrewRunner,
@@ -21,6 +23,10 @@ def test_input_builder_preserves_validated_request() -> None:
 
     assert inputs["starting_location"] == "Mumbai"
     assert inputs["destination"] == "Jaipur"
+    assert inputs["start_date"] == request.start_date.isoformat()
+    assert inputs["end_date"] == request.end_date.isoformat()
+    assert date.fromisoformat(inputs["start_date"]) == request.start_date
+    assert date.fromisoformat(inputs["end_date"]) == request.end_date
     assert inputs["duration_days"] == 4
     assert inputs["travellers"] == 2
     assert inputs["total_budget"] == "60000.00"

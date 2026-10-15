@@ -13,6 +13,22 @@ from smart_travel_planner.models import (
 )
 from smart_travel_planner.utils.exceptions import CrewConfigurationError
 
+_CUSTOMER_CONSTRAINTS = (
+    "Customer destination: {destination}\n"
+    "Trip start date: {start_date}\n"
+    "Trip end date: {end_date}\n"
+    "Trip duration: {duration_days} days\n"
+    "Starting location: {starting_location}\n"
+    "Travellers: {travellers}\n"
+    "Budget: {total_budget} {currency}\n"
+    "Hard constraints: Never alter destination, start_date, end_date, or "
+    "duration_days. Copy dates exactly in ISO YYYY-MM-DD format. The "
+    "destination_research.destination field must equal {destination}. The "
+    "itinerary.destination field must equal {destination}. The "
+    "itinerary.start_date field must equal {start_date}. The "
+    "itinerary.end_date field must equal {end_date}.\n\n"
+)
+
 
 class TravelTaskFactory:
     """Create the six tasks and their explicit dependencies."""
@@ -89,7 +105,8 @@ class TravelTaskFactory:
 
     def _coordination_task(self) -> Task:
         return Task(
-            description=(
+            description=_CUSTOMER_CONSTRAINTS
+            + (
                 "Interpret the validated customer travel request supplied "
                 "through kickoff inputs. Identify the starting location, "
                 "destination, travel dates, duration, traveller count, total "
@@ -115,8 +132,26 @@ class TravelTaskFactory:
         coordination: Task,
     ) -> Task:
         return Task(
-            description=(
-                "Using the approved coordination plan, research attractions, "
+            description=_CUSTOMER_CONSTRAINTS
+            + (
+                "You must call the assigned DestinationSearchTool "
+                "(destination_search) with result_limit=8 before drafting "
+                "destination recommendations. "
+                "Use the returned JSON as the source for attractions and local "
+                "experiences. Map its attractions, local_experiences, "
+                "routing_notes, and sources into the matching destination "
+                "research fields. Preserve each live record's name, category, "
+                "description, source_url, duration, and data_mode. When mock "
+                "fallback records are present, copy them "
+                "into destination_research.attractions and "
+                "destination_research.local_experiences without changing their "
+                "names, categories, or mock labels. Return at least 3 attraction "
+                "records and 2 local-experience records when those fallback "
+                "records are available. Every record must contain name, category, "
+                "and data_mode. Never present mock data as live or invent live "
+                "facts. Empty lists are allowed only when the tool explicitly "
+                "returns status unavailable. Using the approved coordination "
+                "plan, also research attractions, "
                 "local experiences, destination details, available weather, "
                 "and useful routing information. Use assigned tools instead "
                 "of relying only on general model knowledge. Preserve source "
@@ -127,8 +162,9 @@ class TravelTaskFactory:
             ),
             expected_output=(
                 "Structured destination research containing attractions, "
-                "local experiences, available weather, routing notes, sources, "
-                "warnings, and data-mode labels."
+                "at least 3 mock fallback attraction records and 2 mock fallback "
+                "local-experience records when available, available weather, "
+                "routing notes, sources, warnings, and data-mode labels."
             ),
             agent=self.agents[TravelAgentFactory.DESTINATION_RESEARCHER],
             context=[coordination],
@@ -142,7 +178,8 @@ class TravelTaskFactory:
         coordination: Task,
     ) -> Task:
         return Task(
-            description=(
+            description=_CUSTOMER_CONSTRAINTS
+            + (
                 "Using the approved coordination plan, find accommodation and "
                 "intercity transport options that fit the number of travellers, "
                 "trip duration, preferences, and currency. Use the hotel, "
@@ -150,7 +187,9 @@ class TravelTaskFactory:
                 "select a practical preliminary hotel and transport choice. "
                 "Preserve provider and data-mode labels. Explicitly identify "
                 "mock inventory as prototype data rather than live booking "
-                "availability. Return tool-derived cost totals."
+                "availability. Never label hotel prices or transport fares as "
+                "live. Use price_mode=estimated and fare_mode=estimated for "
+                "calculated amounts. Return tool-derived cost totals."
             ),
             expected_output=(
                 "Structured accommodation and transport research containing "
@@ -171,14 +210,18 @@ class TravelTaskFactory:
         hotel_transport: Task,
     ) -> Task:
         return Task(
-            description=(
+            description=_CUSTOMER_CONSTRAINTS
+            + (
                 "Analyse the coordinated requirements, researched activities, "
                 "hotel options, transport options, local travel, meals, and "
                 "other expected expenses. Always use the assigned budget "
                 "calculator for final arithmetic. Do not calculate the final "
                 "total using language-model arithmetic. Compare the verified "
-                "estimated total with the customer's budget and report the "
-                "exact remaining amount or deficit. If the plan is over budget, "
+                "estimated total with the customer's budget of {total_budget} "
+                "{currency} from the validated request. Pass that exact budget "
+                "to the calculator and preserve it as customer_budget in the "
+                "structured output. Report the exact remaining amount or "
+                "deficit. If the plan is over budget, "
                 "provide specific cost-reduction recommendations for Phase 4 "
                 "to evaluate."
             ),
@@ -206,12 +249,15 @@ class TravelTaskFactory:
         budget_analysis: Task,
     ) -> Task:
         return Task(
-            description=(
+            description=_CUSTOMER_CONSTRAINTS
+            + (
                 "Create a practical day-by-day itinerary using the coordinated "
                 "requirements, destination research, hotel and transport "
-                "findings, and verified budget analysis. Represent each travel "
-                "date, order activities chronologically, include realistic "
-                "travel time, and avoid schedule conflicts. Use the schedule "
+                "findings, and verified budget analysis. Use real attraction "
+                "names and routing notes from destination research when available. "
+                "Represent each travel date, order activities chronologically, "
+                "include realistic travel time, and avoid schedule conflicts. "
+                "Use the schedule "
                 "validator before returning the itinerary. Preserve sources, "
                 "data limitations, and warnings. Do not silently change the "
                 "customer's dates or trip duration."
@@ -242,7 +288,8 @@ class TravelTaskFactory:
         itinerary_planning: Task,
     ) -> Task:
         return Task(
-            description=(
+            description=_CUSTOMER_CONSTRAINTS
+            + (
                 "Review every specialist output for consistency, completeness, "
                 "source preservation, data-mode accuracy, schedule validity, "
                 "and budget accuracy. Confirm that mock data is labelled as "

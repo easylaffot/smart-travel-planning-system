@@ -1,7 +1,10 @@
 import json
+import logging
 from datetime import date, timedelta
 from types import SimpleNamespace
 
+import httpx
+import pytest
 from pydantic import SecretStr
 
 from smart_travel_planner.models.provider_results import (
@@ -24,10 +27,37 @@ from smart_travel_planner.tools.weather_tool import WeatherTool
 
 
 class FakeSearchHttpClient:
-    def __init__(self, payload):
+    def __init__(self, payload=None, *, status_code=200, responses=None):
+        self.responses = list(responses or [(status_code, payload or {})])
+        self.requests = []
+        self.call_count = 0
+
+    def post(self, url, *, headers, json, timeout):
+        self.call_count += 1
+        self.requests.append(
+            {
+                "url": url,
+                "headers": headers,
+                "json": json,
+                "timeout": timeout,
+            }
+        )
+        response = self.responses.pop(0) if len(self.responses) > 1 else self.responses[0]
+        if isinstance(response, Exception):
+            raise response
+        if isinstance(response, tuple):
+            status_code, payload = response
+        else:
+            status_code, payload = 200, response
+        return FakeSearchResponse(status_code, payload)
+
+
+class FakeSearchResponse:
+    def __init__(self, status_code, payload):
+        self.status_code = status_code
         self.payload = payload
 
-    def get_json(self, url, *, params=None, headers=None):
+    def json(self):
         return self.payload
 
 
@@ -67,6 +97,11 @@ class FakeRoutingProvider:
 class FakeDestinationSearchProvider:
     def search(self, query, destination, result_limit=5):
         raise AssertionError("The provider should not be called during construction")
+
+
+@pytest.fixture(autouse=True)
+def clear_destination_search_cache():
+    DestinationSearchProvider._cache.clear()
 
 
 def test_all_tools_instantiate_with_private_provider_dependencies() -> None:
@@ -111,16 +146,53 @@ def test_mock_destination_search_fallback_when_key_is_empty(monkeypatch) -> None
         lambda: SimpleNamespace(
             search_api_key=None,
             search_api_url="https://example.com/search",
+            request_timeout_seconds=45,
         ),
     )
 
-    provider = DestinationSearchProvider()
+    http_client = FakeSearchHttpClient()
+    provider = DestinationSearchProvider(http_client=http_client)
     result = provider.search("Jaipur heritage", "Jaipur", result_limit=3)
 
     assert result.data_mode == DataMode.MOCK
     assert result.warning is not None
     assert len(result.results) == 3
     assert "prototype" in result.results[0].title.lower()
+    assert http_client.call_count == 0
+
+
+def test_search_tool_returns_mock_attraction_and_experience_records(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "smart_travel_planner.providers.search_provider.get_settings",
+        lambda: SimpleNamespace(
+            search_api_key=None,
+            search_api_url="https://example.com/search",
+            request_timeout_seconds=20,
+        ),
+    )
+    http_client = FakeSearchHttpClient({})
+    provider = DestinationSearchProvider(http_client=http_client)
+    tool = DestinationSearchTool(provider=provider)
+
+    payload = json.loads(
+        tool._run(
+            destination="Jaipur",
+            interests=["culture", "local food"],
+            result_limit=5,
+        )
+    )
+
+    attractions = payload["data"]["attractions"]
+    experiences = payload["data"]["local_experiences"]
+    assert payload["status"] == "success"
+    assert payload["data_mode"] == "mock"
+    assert len(attractions) >= 3
+    assert len(experiences) >= 2
+    assert all(
+        {"name", "category", "data_mode"}.issubset(record) for record in attractions + experiences
+    )
+    assert all(record["data_mode"] == "mock" for record in attractions + experiences)
+    assert http_client.call_count == 0
 
 
 def test_live_search_response_parsing_through_fake_http_client(monkeypatch) -> None:
@@ -129,31 +201,151 @@ def test_live_search_response_parsing_through_fake_http_client(monkeypatch) -> N
         lambda: SimpleNamespace(
             search_api_key=SecretStr("demo-key"),
             search_api_url="https://example.com/search",
+            request_timeout_seconds=45,
         ),
     )
 
-    provider = DestinationSearchProvider(
-        http_client=FakeSearchHttpClient(
-            {
-                "results": [
-                    {
-                        "title": "Jaipur attractions",
-                        "url": "https://example.com/jaipur",
-                        "snippet": "Historic palaces and bazaars.",
-                    }
-                ]
-            }
-        )
+    http_client = FakeSearchHttpClient(
+        {
+            "results": [
+                {
+                    "title": "Jaipur attractions",
+                    "url": "https://example.com/jaipur",
+                    "content": "Historic palaces and bazaars.",
+                }
+            ]
+        }
     )
+    provider = DestinationSearchProvider(http_client=http_client)
 
     result = provider.search("Jaipur", "Jaipur", result_limit=5)
 
     assert result.data_mode == DataMode.LIVE
     assert result.results[0].title == "Jaipur attractions"
-    assert result.results[0].provider == "destination_search"
+    assert result.results[0].provider == "tavily"
+    assert result.results[0].url == "https://example.com/jaipur"
+    assert http_client.call_count == 1
+    request = http_client.requests[0]
+    assert request["url"] == "https://api.tavily.com/search"
+    assert request["headers"]["Authorization"].startswith("Bearer ")
+    assert request["headers"]["Content-Type"] == "application/json"
+    assert request["timeout"] == 30
+    assert request["json"]["search_depth"] == "basic"
+    assert request["json"]["topic"] == "general"
+    assert request["json"]["max_results"] == 8
+    assert request["json"]["include_answer"] is False
+    assert request["json"]["include_raw_content"] is False
+    assert request["json"]["include_images"] is False
+    assert request["json"]["auto_parameters"] is False
 
 
-def test_malformed_search_response_raises_provider_error(monkeypatch) -> None:
+def test_search_header_value_is_not_logged(monkeypatch, caplog) -> None:
+    monkeypatch.setattr(
+        "smart_travel_planner.providers.search_provider.get_settings",
+        lambda: SimpleNamespace(
+            search_api_key=SecretStr("private-test-key"),
+            request_timeout_seconds=10,
+        ),
+    )
+    http_client = FakeSearchHttpClient({"results": []})
+    provider = DestinationSearchProvider(http_client=http_client)
+
+    with caplog.at_level(logging.DEBUG):
+        provider.search("Jaipur", "Jaipur")
+
+    assert http_client.requests[0]["headers"]["Authorization"] == "Bearer private-test-key"
+    assert "private-test-key" not in caplog.text
+
+
+def test_tavily_timeout_retries_once_then_uses_mock_fallback(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "smart_travel_planner.providers.search_provider.get_settings",
+        lambda: SimpleNamespace(
+            search_api_key=SecretStr("private-test-key"),
+            request_timeout_seconds=12,
+        ),
+    )
+    http_client = FakeSearchHttpClient(
+        responses=[httpx.TimeoutException("timeout"), httpx.TimeoutException("timeout")]
+    )
+
+    result = DestinationSearchProvider(http_client=http_client).search(
+        "Timeout City",
+        "Timeout City",
+    )
+
+    assert result.data_mode == DataMode.MOCK
+    assert http_client.call_count == 2
+    assert all(request["timeout"] == 12 for request in http_client.requests)
+
+
+def test_tavily_rate_limit_retries_once_then_uses_mock_fallback(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "smart_travel_planner.providers.search_provider.get_settings",
+        lambda: SimpleNamespace(
+            search_api_key=SecretStr("private-test-key"),
+            request_timeout_seconds=20,
+        ),
+    )
+    http_client = FakeSearchHttpClient(responses=[(429, {}), (429, {})])
+
+    result = DestinationSearchProvider(http_client=http_client).search(
+        "Limited City",
+        "Limited City",
+    )
+
+    assert result.data_mode == DataMode.MOCK
+    assert http_client.call_count == 2
+
+
+def test_tavily_empty_or_error_response_uses_mock_fallback(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "smart_travel_planner.providers.search_provider.get_settings",
+        lambda: SimpleNamespace(
+            search_api_key=SecretStr("private-test-key"),
+            request_timeout_seconds=20,
+        ),
+    )
+
+    for city, payload in (
+        ("Empty City", {"results": []}),
+        ("Error City", {"error": "search unavailable"}),
+    ):
+        result = DestinationSearchProvider(http_client=FakeSearchHttpClient(payload)).search(
+            city, city
+        )
+        assert result.data_mode == DataMode.MOCK
+
+
+def test_live_search_cache_reuses_results_for_normalized_interests(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "smart_travel_planner.providers.search_provider.get_settings",
+        lambda: SimpleNamespace(
+            search_api_key=SecretStr("private-test-key"),
+            request_timeout_seconds=20,
+        ),
+    )
+    http_client = FakeSearchHttpClient(
+        {
+            "results": [
+                {
+                    "title": "Cache City guide",
+                    "url": "https://example.com/cache-city",
+                    "content": "Attractions and local food.",
+                }
+            ]
+        }
+    )
+    provider = DestinationSearchProvider(http_client=http_client)
+
+    first = provider.search("Cache City", "  Cache   City ", interests=["Food", "Museums"])
+    second = provider.search("Cache City", "cache city", interests=["museums", "food"])
+
+    assert first.results == second.results
+    assert http_client.call_count == 1
+
+
+def test_malformed_search_response_uses_mock_fallback(monkeypatch) -> None:
     monkeypatch.setattr(
         "smart_travel_planner.providers.search_provider.get_settings",
         lambda: SimpleNamespace(
@@ -164,11 +356,10 @@ def test_malformed_search_response_raises_provider_error(monkeypatch) -> None:
 
     provider = DestinationSearchProvider(http_client=FakeSearchHttpClient({"unexpected": []}))
 
-    try:
-        provider.search("Jaipur", "Jaipur")
-        raise AssertionError("Expected ProviderError for malformed response")
-    except Exception as exc:  # pragma: no cover - intentional branch check
-        assert exc.__class__.__name__ == "ProviderError"
+    result = provider.search("Jaipur", "Jaipur")
+
+    assert result.data_mode == DataMode.MOCK
+    assert result.warning is not None
 
 
 def test_location_tool_returns_structured_json() -> None:

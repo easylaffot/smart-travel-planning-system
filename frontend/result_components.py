@@ -140,6 +140,8 @@ def render_planning_result(result: PlanningResult) -> None:
         render_attractions(
             plan.destination_research.attractions,
             plan.destination_research.local_experiences,
+            routing_notes=plan.destination_research.routing_notes,
+            weather_summary=plan.destination_research.weather_summary,
         )
 
     with tabs[2]:
@@ -227,6 +229,9 @@ def render_itinerary(
 def render_attractions(
     attractions: list[dict[str, Any]],
     experiences: list[dict[str, Any]],
+    *,
+    routing_notes: list[str] | None = None,
+    weather_summary: dict[str, Any] | None = None,
 ) -> None:
     """Render destination recommendations."""
 
@@ -234,6 +239,7 @@ def render_attractions(
 
     if not attractions:
         st.info("No attraction recommendations are available.")
+        render_status_badge("unavailable", "Unavailable")
     else:
         columns = st.columns(2)
 
@@ -249,12 +255,7 @@ def render_attractions(
                     lines=[
                         (
                             "Category",
-                            str(
-                                attraction.get(
-                                    "category",
-                                    "Not available",
-                                )
-                            ),
+                            _format_category(str(attraction.get("category", "Not available"))),
                         ),
                         (
                             "Duration",
@@ -272,12 +273,14 @@ def render_attractions(
                             "estimated",
                         )
                     ),
+                    source_url=str(attraction.get("source_url", "")),
                 )
 
     render_section_heading("Local experiences")
 
     if not experiences:
         st.info("No local experiences are available.")
+        render_status_badge("unavailable", "Unavailable")
     else:
         for experience in experiences:
             render_option_card(
@@ -290,12 +293,7 @@ def render_attractions(
                 lines=[
                     (
                         "Category",
-                        str(
-                            experience.get(
-                                "category",
-                                "Not available",
-                            )
-                        ),
+                        _format_category(str(experience.get("category", "Not available"))),
                     )
                 ],
                 data_mode=str(
@@ -304,7 +302,28 @@ def render_attractions(
                         "estimated",
                     )
                 ),
+                source_url=str(experience.get("source_url", "")),
             )
+
+    if routing_notes:
+        render_section_heading("Route guidance")
+        st.caption("Route Estimate")
+        for note in routing_notes:
+            st.write(note)
+    else:
+        st.caption("Route Estimate: Unavailable")
+
+    weather_mode = (
+        str(weather_summary.get("data_mode", "unavailable")).lower()
+        if weather_summary is not None
+        else "unavailable"
+    )
+    weather_label = "Live Weather" if weather_mode == "live" else "Unavailable"
+    render_status_badge(weather_mode, weather_label)
+    if weather_summary is not None:
+        summary = weather_summary.get("summary") or weather_summary.get("description")
+        if summary:
+            st.write(str(summary))
 
 
 def render_options(
@@ -316,6 +335,7 @@ def render_options(
 
     if not options:
         st.info(f"No {option_type} options are available.")
+        render_status_badge("unavailable", "Unavailable")
         return
 
     columns = st.columns(2)
@@ -330,7 +350,7 @@ def render_options(
                     ("Rooms", option.get("rooms", "N/A")),
                     ("Nights", option.get("nights", "N/A")),
                     (
-                        "Total",
+                        "Estimated Price",
                         format_currency(
                             option.get("total_cost", "0"),
                             currency,
@@ -359,7 +379,7 @@ def render_options(
                         option.get("arrival_time", "N/A"),
                     ),
                     (
-                        "Total",
+                        "Estimated Fare",
                         format_currency(
                             option.get("total_cost", "0"),
                             currency,
@@ -371,6 +391,7 @@ def render_options(
                 title=title,
                 lines=[(str(label), str(value)) for label, value in lines],
                 data_mode=str(option.get("data_mode", "mock")),
+                source_url=str(option.get("source_url", "")),
             )
 
 
@@ -378,23 +399,22 @@ def render_option_card(
     title: str,
     lines: list[tuple[str, str]],
     data_mode: str,
+    source_url: str = "",
 ) -> None:
     """Render one comparison card."""
 
-    st.markdown(
-        '<div class="content-card option-card">',
-        unsafe_allow_html=True,
-    )
+    with st.container(border=True):
+        st.markdown(f"#### {title}")
+        render_status_badge(data_mode, _data_mode_label(data_mode))
 
-    st.markdown(f"#### {title}")
-    render_status_badge(data_mode)
+        for label, value in lines:
+            left, right = st.columns([0.8, 1.2])
+            left.caption(label)
+            right.markdown(f"**{value}**")
 
-    for label, value in lines:
-        left, right = st.columns([0.8, 1.2])
-        left.caption(label)
-        right.markdown(f"**{value}**")
-
-    st.markdown("</div>", unsafe_allow_html=True)
+        safe_url = _safe_source_url(source_url)
+        if safe_url:
+            st.link_button("Live Source", safe_url)
 
 
 def render_budget(result: PlanningResult) -> None:
@@ -507,7 +527,11 @@ def render_sources_and_warnings(
 
     if sources:
         for source in sources:
-            st.write(f"• {source}")
+            safe_url = _safe_source_url(source)
+            if safe_url:
+                st.link_button("Live Source", safe_url)
+            else:
+                st.write(f"• {source}")
     else:
         st.info("No live research sources are available in offline demo mode.")
 
@@ -532,3 +556,28 @@ def render_sources_and_warnings(
 
         for error in result.errors:
             st.error(error)
+
+
+def _data_mode_label(data_mode: str) -> str:
+    normalized = data_mode.strip().lower()
+    if normalized == "live":
+        return "Live Source"
+    if normalized == "mock":
+        return "Mock Fallback"
+    if normalized == "unavailable":
+        return "Unavailable"
+    return normalized.replace("_", " ").title()
+
+
+def _format_category(category: str) -> str:
+    return {
+        "local_food": "Local Food",
+        "cultural_experience": "Cultural Experience",
+    }.get(category.strip().lower(), category.replace("_", " ").title())
+
+
+def _safe_source_url(source_url: str) -> str | None:
+    candidate = source_url.strip()
+    if candidate.lower().startswith(("http://", "https://")):
+        return candidate
+    return None

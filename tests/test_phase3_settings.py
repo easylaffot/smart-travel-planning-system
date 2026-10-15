@@ -14,7 +14,7 @@ def test_phase3_execution_defaults_are_safe() -> None:
     )
 
     assert settings.llm_temperature == 0.2
-    assert settings.llm_max_tokens == 4096
+    assert settings.llm_max_tokens == 8192
     assert settings.agent_max_iterations == 5
     assert settings.agent_max_execution_seconds == 180
     assert settings.crew_verbose is False

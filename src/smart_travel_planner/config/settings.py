@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # LLM and CrewAI execution
     llm_temperature: float = Field(default=0.2, ge=0.0, le=1.0)
-    llm_max_tokens: int = Field(default=4096, ge=256, le=32768)
+    llm_max_tokens: int = Field(default=8192, ge=256, le=32768)
     crew_verbose: bool = False
     crew_max_rpm: int | None = Field(default=None, ge=1, le=1000)
     agent_max_iterations: int = Field(default=5, ge=1, le=20)
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
 
     # External providers
     search_api_key: SecretStr | None = None
-    search_api_url: str = "https://example.com/search"
+    search_api_url: str = "https://api.tavily.com/search"
     weather_api_key: SecretStr | None = None
     routing_api_key: SecretStr | None = None
     hotel_api_key: SecretStr | None = None

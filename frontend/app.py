@@ -130,12 +130,14 @@ def render_trip_form() -> CustomerTravelRequest | None:
             "Starting location",
             value="Mumbai",
             placeholder="Example: Mumbai",
+            autocomplete="address-level2",
         )
 
         destination = destination_col.text_input(
             "Destination",
             value="Jaipur",
             placeholder="Example: Jaipur",
+            autocomplete="address-level2",
         )
 
         start_col, end_col, traveller_col = st.columns([1, 1, 0.8])

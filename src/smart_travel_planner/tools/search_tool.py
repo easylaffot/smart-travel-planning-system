@@ -72,7 +72,76 @@ class DestinationSearchTool(BaseTool):
                 query=query,
                 destination=destination,
                 result_limit=result_limit,
+                interests=interest_items,
             )
+            has_mock_results = result.data_mode.value == "mock" and bool(result.results)
+            attractions = (
+                [
+                    {
+                        "name": f"Prototype attraction idea {index} for {result.destination}",
+                        "category": "prototype_attraction_idea",
+                        "data_mode": "mock",
+                    }
+                    for index in range(1, 4)
+                ]
+                if has_mock_results
+                else []
+            )
+            local_experiences = (
+                [
+                    {
+                        "name": f"Prototype local experience idea {index} for {result.destination}",
+                        "category": "prototype_local_experience_idea",
+                        "data_mode": "mock",
+                    }
+                    for index in range(1, 3)
+                ]
+                if has_mock_results
+                else []
+            )
+            routing_notes = []
+            sources = (
+                [item.url for item in result.results if item.url]
+                if result.data_mode.value == "live"
+                else []
+            )
+            if result.data_mode.value == "live":
+                attractions = []
+                local_experiences = []
+                for item in result.results:
+                    searchable_text = f"{item.title} {item.snippet}".casefold()
+                    is_routing_guidance = _contains_any(
+                        searchable_text,
+                        ("transport", "transit", "route", "getting around", "traffic"),
+                    )
+                    record = {
+                        "name": item.title,
+                        "category": _live_category(searchable_text),
+                        "description": item.snippet,
+                        "source_url": item.url,
+                        "duration": "Not specified",
+                        "data_mode": "live",
+                    }
+                    if is_routing_guidance:
+                        routing_notes.append(f"{item.snippet} ({item.url})")
+                    if _contains_any(
+                        searchable_text,
+                        (
+                            "food",
+                            "cuisine",
+                            "restaurant",
+                            "market",
+                            "bazaar",
+                            "culture",
+                            "cultural",
+                            "experience",
+                            "festival",
+                            "workshop",
+                        ),
+                    ):
+                        local_experiences.append(record)
+                    elif not is_routing_guidance:
+                        attractions.append(record)
             payload = {
                 "status": "success",
                 "provider": result.provider,
@@ -83,16 +152,36 @@ class DestinationSearchTool(BaseTool):
                     "query": result.query,
                     "destination": result.destination,
                     "results": [item.model_dump(mode="json") for item in result.results],
+                    "attractions": attractions,
+                    "local_experiences": local_experiences,
+                    "routing_notes": routing_notes,
+                    "sources": sources,
                 },
             }
         except ProviderError as exc:
             payload = {
-                "status": "error",
+                "status": "unavailable",
                 "provider": "destination_search",
-                "data_mode": "live",
-                "warning": "Destination search failed for the submitted query.",
+                "data_mode": "unavailable",
+                "warning": "Destination search was unavailable for the submitted query.",
                 "error": str(exc),
                 "data": None,
             }
 
         return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def _contains_any(value: str, terms: tuple[str, ...]) -> bool:
+    return any(term in value for term in terms)
+
+
+def _live_category(value: str) -> str:
+    if _contains_any(value, ("food", "cuisine", "restaurant")):
+        return "local_food"
+    if _contains_any(value, ("culture", "cultural", "festival", "workshop")):
+        return "cultural_experience"
+    if _contains_any(value, ("market", "bazaar")):
+        return "market"
+    if _contains_any(value, ("transport", "transit", "route", "traffic")):
+        return "transport_guidance"
+    return "attraction"

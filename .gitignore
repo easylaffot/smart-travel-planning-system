@@ -25,3 +25,20 @@ logs/*.log
 .vscode/
 .idea/
 .DS_Store
+
+# Runtime exports and local application data
+data/*.db-*
+data/*.sqlite
+data/*.sqlite-*
+data/*.sqlite3
+data/*.sqlite3-*
+exports/
+downloads/
+
+# Local Streamlit secrets
+.streamlit/secrets.toml
+
+# Deployment and test artifacts
+*.log
+coverage.xml
+junit.xml

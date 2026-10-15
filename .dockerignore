@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# Python environments and caches
+.venv
+venv
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+coverage.xml
+htmlcov
+
+# Secrets
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Runtime files
+data/*.db
+data/*.db-*
+data/*.sqlite
+data/*.sqlite-*
+data/*.sqlite3
+data/*.sqlite3-*
+logs/*.log
+exports
+downloads
+
+# IDE and OS
+.vscode
+.idea
+.DS_Store
+
+# Documentation and local output
+*.zip
+*.tar
+*.gz
+junit.xml
