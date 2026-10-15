@@ -2,6 +2,7 @@ services:
   - type: web
     name: smart-travel-planning-system
     runtime: docker
+    plan: free
     dockerfilePath: ./Dockerfile
     healthCheckPath: /_stcore/health
     autoDeploy: false
@@ -32,7 +33,7 @@ services:
         value: "2"
 
       - key: REQUEST_TIMEOUT_SECONDS
-        value: "20"
+        value: "60"
 
       - key: CREW_VERBOSE
         value: "false"
@@ -54,3 +55,6 @@ services:
 
       - key: SEARCH_API_URL
         sync: false
+        
+      - key: LLM_MAX_TOKENS
+        value: "8192"
